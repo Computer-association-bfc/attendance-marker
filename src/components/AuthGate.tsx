@@ -41,7 +41,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     <UserContext.Provider value={user}>
       <header className="no-print border-b border-zinc-200 bg-white">
         <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-1 px-4 py-2">
-          <span className="mr-4 font-semibold">Event Attendance</span>
+          <span className="mr-4 hidden font-semibold sm:inline">Event Attendance</span>
           {NAV.map((n) => (
             <Link
               key={n.href}
@@ -55,10 +55,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               {n.label}
             </Link>
           ))}
-          <span className="ml-auto text-xs text-zinc-500">{user.email}</span>
+          <span className="ml-auto hidden text-xs text-zinc-500 sm:inline">{user.email}</span>
           <button
             onClick={() => signOut(auth())}
-            className="rounded px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100"
+            className="ml-auto rounded px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 sm:ml-0"
           >
             Sign out
           </button>

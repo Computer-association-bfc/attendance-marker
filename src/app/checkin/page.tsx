@@ -29,9 +29,18 @@ type Banner = { tone: "ok" | "warn" | "error"; text: string } | null;
 export default function CheckInPage() {
   const user = useUser();
   const guests = useGuests();
-  const { videoRef, error: cameraError } = useCamera();
+  const { videoRef, error: cameraError, facing, canFlip, flip } = useCamera();
   const [mode, setMode] = useState<Mode>({ kind: "scan" });
   const [banner, setBanner] = useState<Banner>(null);
+  const panelRef = useRef<HTMLElement>(null);
+
+  // On a phone the panel sits below the camera; bring the guest details or
+  // the registration form into view so the volunteer doesn't have to scroll.
+  useEffect(() => {
+    if (mode.kind !== "scan") {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [mode]);
 
   // The guest usually keeps holding their QR after being checked in; ignore
   // repeat scans of the same code for a few seconds so that doesn't pop up
@@ -69,19 +78,31 @@ export default function CheckInPage() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+    <div className="grid gap-4 lg:grid-cols-[1fr_420px] lg:gap-6">
       <section className="flex flex-col gap-3">
         <div className="relative overflow-hidden rounded-lg bg-black">
           <video
             ref={videoRef}
             muted
             playsInline
-            className="aspect-video w-full -scale-x-100 object-cover"
+            // Mirror only the front camera, so it behaves like a mirror.
+            className={`aspect-[4/3] w-full object-cover sm:aspect-video ${
+              facing === "user" ? "-scale-x-100" : ""
+            }`}
           />
           {mode.kind === "scan" && !cameraError && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-56 w-56 rounded-xl border-4 border-white/70" />
+              <div className="aspect-square w-3/5 max-w-56 rounded-xl border-4 border-white/70" />
             </div>
+          )}
+          {canFlip && (
+            <button
+              type="button"
+              onClick={flip}
+              className="absolute right-2 bottom-2 rounded-full bg-black/60 px-4 py-2 text-sm font-medium text-white backdrop-blur hover:bg-black/80"
+            >
+              ⟲ {facing === "environment" ? "Front camera" : "Rear camera"}
+            </button>
           )}
         </div>
         {cameraError && <p className="text-sm text-red-600">{cameraError}</p>}
@@ -100,12 +121,12 @@ export default function CheckInPage() {
         )}
       </section>
 
-      <aside className="flex flex-col gap-4">
+      <aside ref={panelRef} className="flex scroll-mt-2 flex-col gap-4">
         {mode.kind === "scan" && (
           <>
             <p className="text-sm text-zinc-600">
-              Hold the guest&apos;s QR code up to the camera, or find them by
-              name.
+              Point the camera at the QR code on the guest&apos;s ID card, or
+              find them by name.
             </p>
             <GuestSearch
               guests={guests ?? []}
@@ -349,8 +370,8 @@ function OnSpotForm({
         />
       ))}
       <p className="text-sm text-zinc-600">
-        Ask the guest to face the camera. Their photo is taken when you press
-        register.
+        Point the camera at the guest&apos;s face. Their photo is taken when
+        you press register.
       </p>
       <div className="flex gap-2">
         <button className="btn-primary flex-1" disabled={busy}>

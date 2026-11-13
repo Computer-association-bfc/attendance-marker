@@ -3,9 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
 
-/** Starts the webcam and attaches it to the returned <video> ref. */
+export type Facing = "environment" | "user";
+
+const FACING_KEY = "attendance:camera-facing";
+
+function savedFacing(): Facing {
+  try {
+    return localStorage.getItem(FACING_KEY) === "user" ? "user" : "environment";
+  } catch {
+    return "environment";
+  }
+}
+
+/**
+ * Starts the camera and attaches it to the returned <video> ref. Defaults to
+ * the rear camera (for scanning ID cards with a phone); `flip` switches
+ * between rear and front, and the choice is remembered on this device.
+ */
 export function useCamera() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Safe to read localStorage here: <AuthGate> only renders pages in the browser.
+  const [facing, setFacing] = useState<Facing>(savedFacing);
+  const [canFlip, setCanFlip] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -13,28 +32,54 @@ export function useCamera() {
     let cancelled = false;
 
     navigator.mediaDevices
-      .getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
-      .then((s) => {
+      .getUserMedia({
+        // `ideal` so laptops with a single webcam still get that webcam.
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      })
+      .then(async (s) => {
         if (cancelled) return s.getTracks().forEach((t) => t.stop());
         stream = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
           void videoRef.current.play();
         }
+        // Device labels/count are only reliable once permission is granted.
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        if (!cancelled) {
+          setCanFlip(devices.filter((d) => d.kind === "videoinput").length > 1);
+        }
       })
-      .catch(() =>
-        setError(
-          "Camera unavailable. Allow camera access in the browser, or use the search box instead.",
-        ),
-      );
+      .catch(() => {
+        if (!cancelled) {
+          setError(
+            "Camera unavailable. Allow camera access in the browser, or use the search box instead.",
+          );
+        }
+      });
 
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, []);
+  }, [facing]);
 
-  return { videoRef, error };
+  function flip() {
+    const next: Facing = facing === "environment" ? "user" : "environment";
+    setError(null);
+    setFacing(next);
+    try {
+      localStorage.setItem(FACING_KEY, next);
+    } catch {
+      // Not remembered; it still switches for this session.
+    }
+  }
+
+  return { videoRef, error, facing, canFlip, flip };
 }
 
 /** Calls onScan with the text of any QR code seen while `active` is true. */
