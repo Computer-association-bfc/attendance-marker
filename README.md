@@ -7,17 +7,17 @@ QR-code check-in for a one-day event, built with Next.js, TypeScript and Firebas
 
 - **Guest list**: add guests one by one or import a CSV exported from Excel
   (`name, designation, institution, phone, email, award_category, title`;
-  only `name` is required, see `sample-guests.csv`). You can also
-  attach a reference photo for each guest.
-- **QR badges** (`/guests/badges`): print them, or save individual QR codes and send
-  them on WhatsApp.
-- **Check-in desk** (`/checkin`): scan a QR code with the webcam, or search by name.
-  The volunteer sees the guest's reference photo and confirms that the person at the
-  desk matches it. A webcam snapshot is saved as proof.
-- **On-spot registration**: walk-in guests are registered at the desk. Their photo
-  is taken and they are checked in straight away.
+  only `name` is required, see `sample-guests.csv`).
+- **QR badges** (`/guests/badges`): print them onto the guests' ID cards.
+- **Check-in desk** (`/checkin`): made for a volunteer's phone. Scan the QR on the
+  ID card with the rear camera (there's a button to switch to the front camera), or
+  search by name. The volunteer checks the name against the ID card and confirms.
+- **On-spot registration**: walk-in guests are registered at the desk and checked
+  in straight away.
 - **Dashboard** (`/dashboard`): live counts, list of who has arrived, and an
   export to Excel (CSV).
+
+No photos of guests are taken or stored. The camera is used only to read QR codes.
 
 ### Proxy protection
 
@@ -25,12 +25,8 @@ QR-code check-in for a one-day event, built with Next.js, TypeScript and Firebas
   guessed or forged.
 - Each QR works only once. This is enforced in a Firestore transaction *and* by
   `firestore.rules`, so it can't be bypassed from the browser.
-- When a used QR is scanned again, the desk shows a warning with the original check-in time and
-  snapshot, so a shared QR is caught immediately.
-- Check-in records (snapshots) can't be edited or deleted.
-
-Photos are stored as small JPEGs inside Firestore, so you don't need Firebase Storage
-(which requires the paid Blaze plan). The free Spark plan is enough.
+- When a used QR is scanned again, the desk shows a warning with the time and the
+  volunteer who checked it in, so a shared QR is caught immediately.
 
 ## Run locally without a Firebase project (emulators)
 
@@ -63,10 +59,11 @@ Emulator data is wiped every time the emulators are restarted.
 
 ## On the event day
 
-- Use a laptop with a webcam (or an external USB webcam facing the guest), running
-  Chrome. Open `/checkin` and allow camera access.
+- The volunteer opens the site on their phone (the deployed HTTPS link; phones block
+  the camera on plain `http://` addresses), signs in, opens the Check-in desk and
+  allows camera access.
 - The app needs internet to save check-ins. Keep a **mobile hotspot** as a backup to
   the venue Wi-Fi, and keep a **paper register** in case everything fails.
 - Do a full rehearsal the day before, using the real QR badges.
-- After the event, export the CSV and then delete the photos/snapshots from Firestore.
-  They are personal data and you shouldn't keep them longer than needed.
+- After the event, export the CSV, then delete the guest data from Firestore.
+  It's personal data (phones, emails), so don't keep it longer than needed.

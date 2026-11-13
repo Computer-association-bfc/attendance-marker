@@ -1,14 +1,13 @@
 import {
   collection,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   Timestamp,
-  updateDoc,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -24,18 +23,9 @@ export interface Guest {
   email: string;
   awardCategory: string;
   title: string;
-  /** Reference photo (small JPEG data URL), shown to the desk volunteer on scan. */
-  photo: string | null;
   source: GuestSource;
   checkedInAt: Timestamp | null;
   checkedInBy: string | null;
-}
-
-export interface CheckIn {
-  /** Webcam snapshot taken at the desk at the moment of check-in. */
-  snapshot: string | null;
-  at: Timestamp;
-  by: string;
 }
 
 export type GuestTextField =
@@ -47,7 +37,7 @@ export type GuestTextField =
   | "awardCategory"
   | "title";
 
-export type NewGuest = Pick<Guest, GuestTextField | "photo">;
+export type NewGuest = Pick<Guest, GuestTextField>;
 
 /** The text fields of a guest, in form order, with their CSV column names. */
 export const GUEST_FIELDS: {
@@ -86,7 +76,6 @@ export function guestIdFromQr(text: string): string | null {
 }
 
 const guestsCol = () => collection(db(), "guests");
-const checkinsCol = () => collection(db(), "checkins");
 
 export function watchGuests(onChange: (guests: Guest[]) => void) {
   return onSnapshot(query(guestsCol(), orderBy("name")), (snap) =>
@@ -97,11 +86,6 @@ export function watchGuests(onChange: (guests: Guest[]) => void) {
       ),
     ),
   );
-}
-
-export async function getCheckIn(guestId: string): Promise<CheckIn | null> {
-  const snap = await getDoc(doc(checkinsCol(), guestId));
-  return snap.exists() ? (snap.data() as CheckIn) : null;
 }
 
 export async function addGuests(guests: NewGuest[]) {
@@ -119,10 +103,6 @@ export async function addGuests(guests: NewGuest[]) {
   await batch.commit();
 }
 
-export function setGuestPhoto(guestId: string, photo: string) {
-  return updateDoc(doc(guestsCol(), guestId), { photo });
-}
-
 export class AlreadyCheckedInError extends Error {
   constructor(public at: Timestamp | null) {
     super("Guest is already checked in");
@@ -130,14 +110,10 @@ export class AlreadyCheckedInError extends Error {
 }
 
 /**
- * Marks a guest present and stores the desk snapshot. Runs as a transaction
- * so the same QR can never be used twice, even from two desks at once.
+ * Marks a guest present. Runs as a transaction so the same QR can never be
+ * used twice, even from two phones at once (firestore.rules enforces this too).
  */
-export async function checkIn(
-  guestId: string,
-  snapshot: string | null,
-  by: string,
-) {
+export async function checkIn(guestId: string, by: string) {
   const guestRef = doc(guestsCol(), guestId);
   await runTransaction(db(), async (tx) => {
     const guest = await tx.get(guestRef);
@@ -146,36 +122,18 @@ export async function checkIn(
       throw new AlreadyCheckedInError(guest.data().checkedInAt);
     }
     tx.update(guestRef, { checkedInAt: serverTimestamp(), checkedInBy: by });
-    tx.set(doc(checkinsCol(), guestId), {
-      snapshot,
-      at: serverTimestamp(),
-      by,
-    });
   });
 }
 
 /** Registers a walk-in guest and checks them in in one step. */
-export async function registerOnSpot(
-  guest: Omit<NewGuest, "photo">,
-  snapshot: string | null,
-  by: string,
-) {
-  const batch = writeBatch(db());
+export async function registerOnSpot(guest: NewGuest, by: string) {
   const guestRef = doc(guestsCol());
-  batch.set(guestRef, {
+  await setDoc(guestRef, {
     ...guest,
-    // The desk snapshot doubles as their reference photo.
-    photo: snapshot,
     source: "on-spot",
     checkedInAt: serverTimestamp(),
     checkedInBy: by,
     createdAt: serverTimestamp(),
   });
-  batch.set(doc(checkinsCol(), guestRef.id), {
-    snapshot,
-    at: serverTimestamp(),
-    by,
-  });
-  await batch.commit();
   return guestRef.id;
 }

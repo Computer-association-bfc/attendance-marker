@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import GuestPhoto from "@/components/GuestPhoto";
 import { downloadCsv } from "@/lib/csv";
 import { GUEST_FIELDS } from "@/lib/guests";
 import { formatTime, useGuests } from "@/lib/useGuests";
@@ -74,7 +73,6 @@ export default function DashboardPage() {
       <ul className="card divide-y divide-zinc-100 p-0">
         {shown.map((g) => (
           <li key={g.id} className="flex items-center gap-3 p-3">
-            <GuestPhoto src={g.photo} label={g.name} size="sm" />
             <span className="flex-1">
               <span className="block font-medium">{g.name}</span>
               <span className="block text-sm text-zinc-500">

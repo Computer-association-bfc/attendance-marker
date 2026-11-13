@@ -2,20 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@/components/AuthGate";
-import GuestPhoto from "@/components/GuestPhoto";
 import {
   AlreadyCheckedInError,
   checkIn,
   emptyGuestFields,
-  getCheckIn,
   GUEST_FIELDS,
   guestIdFromQr,
   registerOnSpot,
-  type CheckIn,
   type Guest,
   type NewGuest,
 } from "@/lib/guests";
-import { snapshotFromVideo } from "@/lib/images";
 import { useCamera, useQrScanner } from "@/lib/useCamera";
 import { formatTime, useGuests } from "@/lib/useGuests";
 
@@ -79,7 +75,10 @@ export default function CheckInPage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_420px] lg:gap-6">
-      <section className="flex flex-col gap-3">
+      {/* The camera isn't needed while typing in a walk-in; give a phone screen to the form. */}
+      <section
+        className={`flex-col gap-3 ${mode.kind === "onspot" ? "hidden lg:flex" : "flex"}`}
+      >
         <div className="relative overflow-hidden rounded-lg bg-black">
           <video
             ref={videoRef}
@@ -145,11 +144,8 @@ export default function CheckInPage() {
           <ReviewPanel
             guest={reviewing}
             onConfirm={async () => {
-              const snapshot = videoRef.current
-                ? snapshotFromVideo(videoRef.current)
-                : null;
               try {
-                await checkIn(reviewing.id, snapshot, user.email ?? user.uid);
+                await checkIn(reviewing.id, user.email ?? user.uid);
                 done(`✅ ${reviewing.name} checked in.`);
               } catch (e) {
                 setBanner(
@@ -169,11 +165,8 @@ export default function CheckInPage() {
         {mode.kind === "onspot" && (
           <OnSpotForm
             onSubmit={async (details) => {
-              const snapshot = videoRef.current
-                ? snapshotFromVideo(videoRef.current)
-                : null;
               try {
-                await registerOnSpot(details, snapshot, user.email ?? user.uid);
+                await registerOnSpot(details, user.email ?? user.uid);
                 done(`✅ ${details.name} registered and checked in.`);
               } catch {
                 setBanner({ tone: "error", text: "Could not save. Check the internet connection and try again." });
@@ -221,7 +214,6 @@ function GuestSearch({
           onClick={() => onPick(g)}
           className="card flex items-center gap-3 p-2 text-left hover:bg-zinc-50"
         >
-          <GuestPhoto src={g.photo} label={g.name} size="sm" />
           <span className="flex-1">
             <span className="block text-sm font-medium">{g.name}</span>
             <span className="block text-xs text-zinc-500">
@@ -247,11 +239,6 @@ function ReviewPanel({
   onCancel: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [previous, setPrevious] = useState<CheckIn | null>(null);
-
-  useEffect(() => {
-    if (guest.checkedInAt) void getCheckIn(guest.id).then(setPrevious);
-  }, [guest.id, guest.checkedInAt]);
 
   if (guest.checkedInAt) {
     return (
@@ -260,20 +247,9 @@ function ReviewPanel({
           ⚠️ Already checked in at {formatTime(guest.checkedInAt)}
         </p>
         <GuestDetails guest={guest} />
-        <div className="flex gap-3">
-          <figure>
-            <GuestPhoto src={guest.photo} label="Photo on file" />
-            <figcaption className="mt-1 text-xs text-zinc-500">On file</figcaption>
-          </figure>
-          <figure>
-            <GuestPhoto src={previous?.snapshot ?? null} label="Taken at check-in" />
-            <figcaption className="mt-1 text-xs text-zinc-500">
-              At check-in ({guest.checkedInBy})
-            </figcaption>
-          </figure>
-        </div>
         <p className="text-sm text-amber-900">
-          If this is a different person, this QR may have been shared. Inform
+          Checked in by {guest.checkedInBy}. If this person says they haven&apos;t
+          checked in yet, their QR may have been used by someone else. Inform
           the coordinator.
         </p>
         <button className="btn-secondary" onClick={onCancel}>
@@ -286,12 +262,8 @@ function ReviewPanel({
   return (
     <div className="card flex flex-col gap-3">
       <GuestDetails guest={guest} />
-      <GuestPhoto src={guest.photo} label={guest.name} />
       <p className="text-sm text-zinc-600">
-        {guest.photo
-          ? "Check the person at the desk matches this photo."
-          : "No photo on file. Verify identity (e.g. ID card) before confirming."}{" "}
-        A camera snapshot is saved when you confirm.
+        Check that the name matches the guest&apos;s ID card before confirming.
       </p>
       <div className="flex gap-2">
         <button
@@ -337,7 +309,7 @@ function OnSpotForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (d: Omit<NewGuest, "photo">) => Promise<void>;
+  onSubmit: (d: NewGuest) => Promise<void>;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState(emptyGuestFields);
@@ -369,13 +341,9 @@ function OnSpotForm({
           onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
         />
       ))}
-      <p className="text-sm text-zinc-600">
-        Point the camera at the guest&apos;s face. Their photo is taken when
-        you press register.
-      </p>
       <div className="flex gap-2">
         <button className="btn-primary flex-1" disabled={busy}>
-          {busy ? "Saving…" : "Take photo & register"}
+          {busy ? "Saving…" : "Register & check in"}
         </button>
         <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>
           Cancel

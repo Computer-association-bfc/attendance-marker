@@ -4,26 +4,16 @@ service cloud.firestore {
     function signedIn() {
       return request.auth != null;
     }
-    function changed() {
-      return request.resource.data.diff(resource.data).affectedKeys();
-    }
 
     match /guests/{guestId} {
       allow read, create: if signedIn();
-      allow update: if signedIn() && (
-        // Updating the reference photo.
-        changed().hasOnly(['photo']) ||
-        // Checking in, which is only allowed once (enforced server-side too).
-        (resource.data.checkedInAt == null &&
-         changed().hasOnly(['checkedInAt', 'checkedInBy']))
-      );
+      // Checking in is the only allowed change, and only once, so a QR code
+      // can never be reused, even by calling the database directly.
+      allow update: if signedIn()
+        && resource.data.checkedInAt == null
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['checkedInAt', 'checkedInBy']);
       allow delete: if false;
-    }
-
-    // Check-in records (with the desk snapshot) can't be edited or deleted.
-    match /checkins/{guestId} {
-      allow read, create: if signedIn();
-      allow update, delete: if false;
     }
   }
 }
