@@ -12,6 +12,8 @@ QR-code check-in for a one-day event, built with Next.js, TypeScript and Firebas
 - **Check-in desk** (`/checkin`): made for a volunteer's phone. Scan the QR on the
   ID card with the rear camera (there's a button to switch to the front camera), or
   search by name. The volunteer checks the name against the ID card and confirms.
+- **Food counter** (`/food`): works the same way as the check-in desk. Scan the
+  guest's QR and tap *Mark food given*. Each guest can claim food only once.
 - **On-spot registration**: walk-in guests are registered at the desk and checked
   in straight away.
 - **Dashboard** (`/dashboard`): live counts, list of who has arrived, and an
@@ -23,7 +25,7 @@ No photos of guests are taken or stored. The camera is used only to read QR code
 
 - QR codes contain the guest's random 20-character Firestore ID, so they can't be
   guessed or forged.
-- Each QR works only once. This is enforced in a Firestore transaction *and* by
+- Each QR works only once for check-in, and once for food. This is enforced in a Firestore transaction *and* by
   `firestore.rules`, so it can't be bypassed from the browser.
 - When a used QR is scanned again, the desk shows a warning with the time and the
   volunteer who checked it in, so a shared QR is caught immediately.

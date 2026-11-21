@@ -4,15 +4,21 @@ service cloud.firestore {
     function signedIn() {
       return request.auth != null;
     }
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
 
     match /guests/{guestId} {
       allow read, create: if signedIn();
-      // Checking in is the only allowed change, and only once, so a QR code
-      // can never be reused, even by calling the database directly.
-      allow update: if signedIn()
-        && resource.data.checkedInAt == null
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['checkedInAt', 'checkedInBy']);
+      // The only allowed changes are checking in and claiming food, each
+      // only once, so a QR code can never be reused for either, even by
+      // calling the database directly.
+      allow update: if signedIn() && (
+        (resource.data.checkedInAt == null &&
+         changed().hasOnly(['checkedInAt', 'checkedInBy'])) ||
+        (resource.data.get('foodClaimedAt', null) == null &&
+         changed().hasOnly(['foodClaimedAt', 'foodClaimedBy']))
+      );
       allow delete: if false;
     }
   }

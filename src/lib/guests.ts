@@ -26,6 +26,8 @@ export interface Guest {
   source: GuestSource;
   checkedInAt: Timestamp | null;
   checkedInBy: string | null;
+  foodClaimedAt: Timestamp | null;
+  foodClaimedBy: string | null;
 }
 
 export type GuestTextField =
@@ -82,7 +84,14 @@ export function watchGuests(onChange: (guests: Guest[]) => void) {
     onChange(
       snap.docs.map(
         // Defaults keep guests added before a field existed working.
-        (d) => ({ id: d.id, ...emptyGuestFields(), ...d.data() }) as Guest,
+        (d) =>
+          ({
+            id: d.id,
+            ...emptyGuestFields(),
+            foodClaimedAt: null,
+            foodClaimedBy: null,
+            ...d.data(),
+          }) as Guest,
       ),
     ),
   );
@@ -97,15 +106,18 @@ export async function addGuests(guests: NewGuest[]) {
       source: "pre-registered",
       checkedInAt: null,
       checkedInBy: null,
+      foodClaimedAt: null,
+      foodClaimedBy: null,
       createdAt: serverTimestamp(),
     });
   }
   await batch.commit();
 }
 
-export class AlreadyCheckedInError extends Error {
+/** Thrown when a guest has already been checked in, or already claimed food. */
+export class AlreadyDoneError extends Error {
   constructor(public at: Timestamp | null) {
-    super("Guest is already checked in");
+    super("Already done for this guest");
   }
 }
 
@@ -119,9 +131,22 @@ export async function checkIn(guestId: string, by: string) {
     const guest = await tx.get(guestRef);
     if (!guest.exists()) throw new Error("Guest not found");
     if (guest.data().checkedInAt) {
-      throw new AlreadyCheckedInError(guest.data().checkedInAt);
+      throw new AlreadyDoneError(guest.data().checkedInAt);
     }
     tx.update(guestRef, { checkedInAt: serverTimestamp(), checkedInBy: by });
+  });
+}
+
+/** Marks that a guest has claimed their food; also only possible once. */
+export async function claimFood(guestId: string, by: string) {
+  const guestRef = doc(guestsCol(), guestId);
+  await runTransaction(db(), async (tx) => {
+    const guest = await tx.get(guestRef);
+    if (!guest.exists()) throw new Error("Guest not found");
+    if (guest.data().foodClaimedAt) {
+      throw new AlreadyDoneError(guest.data().foodClaimedAt);
+    }
+    tx.update(guestRef, { foodClaimedAt: serverTimestamp(), foodClaimedBy: by });
   });
 }
 
@@ -133,6 +158,8 @@ export async function registerOnSpot(guest: NewGuest, by: string) {
     source: "on-spot",
     checkedInAt: serverTimestamp(),
     checkedInBy: by,
+    foodClaimedAt: null,
+    foodClaimedBy: null,
     createdAt: serverTimestamp(),
   });
   return guestRef.id;

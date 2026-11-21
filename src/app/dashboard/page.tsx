@@ -5,7 +5,7 @@ import { downloadCsv } from "@/lib/csv";
 import { GUEST_FIELDS } from "@/lib/guests";
 import { formatTime, useGuests } from "@/lib/useGuests";
 
-type Filter = "all" | "present" | "absent" | "on-spot";
+type Filter = "all" | "present" | "absent" | "on-spot" | "food";
 
 export default function DashboardPage() {
   const guests = useGuests() ?? [];
@@ -13,13 +13,15 @@ export default function DashboardPage() {
 
   const present = guests.filter((g) => g.checkedInAt);
   const onSpot = guests.filter((g) => g.source === "on-spot");
+  const fed = guests.filter((g) => g.foodClaimedAt);
   const shown = guests
     .filter(
       (g) =>
         filter === "all" ||
         (filter === "present" && g.checkedInAt) ||
         (filter === "absent" && !g.checkedInAt) ||
-        (filter === "on-spot" && g.source === "on-spot"),
+        (filter === "on-spot" && g.source === "on-spot") ||
+        (filter === "food" && g.foodClaimedAt),
     )
     // Latest arrivals first, then the rest alphabetically.
     .sort(
@@ -30,13 +32,16 @@ export default function DashboardPage() {
 
   function exportCsv() {
     downloadCsv(`attendance-${new Date().toISOString().slice(0, 10)}.csv`, [
-      [...GUEST_FIELDS.map((f) => f.label), "Status", "Check-in time", "Registration", "Checked in by"],
+      [...GUEST_FIELDS.map((f) => f.label), "Status", "Check-in time", "Registration", "Checked in by", "Food claimed", "Food time", "Food marked by"],
       ...guests.map((g) => [
         ...GUEST_FIELDS.map((f) => g[f.key]),
         g.checkedInAt ? "Present" : "Absent",
         g.checkedInAt ? g.checkedInAt.toDate().toLocaleString("en-IN") : "",
         g.source,
         g.checkedInBy ?? "",
+        g.foodClaimedAt ? "Yes" : "No",
+        g.foodClaimedAt ? g.foodClaimedAt.toDate().toLocaleString("en-IN") : "",
+        g.foodClaimedBy ?? "",
       ]),
     ]);
   }
@@ -46,6 +51,7 @@ export default function DashboardPage() {
     { label: "Present", value: present.length, filter: "present" },
     { label: "Yet to arrive", value: guests.length - present.length, filter: "absent" },
     { label: "On-spot registrations", value: onSpot.length, filter: "on-spot" },
+    { label: "Food claimed", value: fed.length, filter: "food" },
   ];
 
   return (
@@ -57,7 +63,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {stats.map((s) => (
           <button
             key={s.filter}
@@ -79,6 +85,9 @@ export default function DashboardPage() {
                 {g.designation}, {g.institution}
               </span>
             </span>
+            {g.foodClaimedAt && (
+              <span className="text-sm text-orange-700">🍽 {formatTime(g.foodClaimedAt)}</span>
+            )}
             {g.checkedInAt ? (
               <span className="text-sm text-green-700">✓ {formatTime(g.checkedInAt)}</span>
             ) : (

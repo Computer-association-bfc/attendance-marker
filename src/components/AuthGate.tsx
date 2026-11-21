@@ -22,6 +22,7 @@ export function useUser(): User {
 
 const NAV = [
   { href: "/checkin", label: "Check-in desk" },
+  { href: "/food", label: "Food counter" },
   { href: "/guests", label: "Guest list" },
   { href: "/dashboard", label: "Dashboard" },
 ];
